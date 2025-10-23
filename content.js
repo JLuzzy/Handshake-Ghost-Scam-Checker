@@ -1,4 +1,12 @@
 /* Handshake Trust Checker content script */
+/*
+what up
+
+
+
+
+*/
+
 (function() {
   const RED_FLAGS = [
     /immediate\s*hire/i,
