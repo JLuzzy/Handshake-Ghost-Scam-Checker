@@ -146,25 +146,81 @@ what up
     });
   }
 
-  // Observe SPA updates
-  const observer = new MutationObserver((muts) => {
-    for (const m of muts) {
-      if (m.addedNodes && m.addedNodes.length) {
-        scanJobs();
-        break;
+  let spinnerEl = null;
+  let currentScanToken = 0;
+
+  function ensureSpinner() {
+    if (spinnerEl && spinnerEl.isConnected) return spinnerEl;
+    spinnerEl = document.createElement("div");
+    spinnerEl.className = "htc-spinner-overlay";
+    spinnerEl.setAttribute("role", "status");
+    spinnerEl.setAttribute("aria-live", "polite");
+    spinnerEl.innerHTML = `
+      <div class="htc-spinner-circle" aria-hidden="true"></div>
+      <span class="htc-spinner-message">Analyzing job...</span>
+    `;
+    const parent = document.body || document.documentElement;
+    parent.appendChild(spinnerEl);
+    return spinnerEl;
+  }
+
+  function showSpinner() {
+    const el = ensureSpinner();
+    if (!el) return;
+    requestAnimationFrame(() => el.classList.add("visible"));
+  }
+
+  function hideSpinner() {
+    if (spinnerEl) spinnerEl.classList.remove("visible");
+  }
+
+  function scheduleScanSequence(initialDelay = 250, attempts = 3, spacing = 400) {
+    const token = ++currentScanToken;
+    showSpinner();
+
+    let runs = 0;
+    const attemptScan = () => {
+      if (token !== currentScanToken) return;
+      scanJobs();
+      runs += 1;
+      if (runs >= attempts) {
+        if (token === currentScanToken) hideSpinner();
+      } else {
+        setTimeout(attemptScan, spacing);
       }
-    }
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+    };
+
+    setTimeout(attemptScan, initialDelay);
+  }
+
+  function wasModifiedClick(event) {
+    return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  }
+
+  function isExtensionElement(target) {
+    return target instanceof Element && Boolean(target.closest(".htc-badge, .htc-spinner-overlay"));
+  }
+
+  document.addEventListener("click", event => {
+    if (event.button !== 0) return;
+    if (wasModifiedClick(event)) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (isExtensionElement(target)) return;
+
+    const jobTrigger = target.closest(
+      'a[href*="/jobs/"], [data-qa*="job" i], [data-testid*="job" i], [data-test*="job" i], [data-job-id], [data-jobid]'
+    );
+    if (!jobTrigger) return;
+
+    scheduleScanSequence();
+  }, true);
 
   // Listen for manual trigger from popup
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "HANDSHAKE_SCAN") {
-      scanJobs();
+      scheduleScanSequence(0);
       sendResponse({ ok: true });
     }
   });
-
-  // Initial scan after load
-  setTimeout(scanJobs, 600);
 })();
