@@ -43,15 +43,44 @@ what up
     return { score: Math.max(0, Math.min(100, score)), label, color };
   }
 
+  const badgeFor = new WeakMap();
+  const JOB_KEYWORDS = [
+    /responsibil/i,
+    /qualification/i,
+    /requirement/i,
+    /preferred/i,
+    /benefits?/i,
+    /job description/i,
+    /application deadline/i,
+    /what you'll do/i,
+    /who you are/i,
+    /about the role/i,
+    /apply now/i
+  ];
+
   function markCard(card, result) {
-    if (card.querySelector(".htc-badge")) return;
-    const badge = document.createElement("div");
-    badge.className = "htc-badge";
+    let badge = badgeFor.get(card);
+    if (!badge || !badge.isConnected) {
+      badge = document.createElement("span");
+      badge.className = "htc-badge";
+      badgeFor.set(card, badge);
+
+      const heading = card.querySelector(
+        'h1, h2, h3, [data-testid*="title" i], [data-qa*="title" i]'
+      );
+      if (heading) {
+        badge.classList.add("htc-badge-inline");
+        heading.insertAdjacentElement("afterend", badge);
+      } else {
+        card.appendChild(badge);
+      }
+      card.style.scrollMarginTop = "96px";
+    }
+
     badge.textContent = `${result.label} (${result.score})`;
     badge.style.backgroundColor = result.color;
-    card.appendChild(badge);
     card.setAttribute("data-htc", result.label);
-    card.style.scrollMarginTop = "96px";
+    card.setAttribute("data-htc-score", String(result.score));
   }
 
   function extractText(node) {
@@ -59,25 +88,59 @@ what up
     return (node.innerText || node.textContent || "").trim();
   }
 
+  function isLikelyJobNode(node, text) {
+    if (!text || text.length < 40) return false;
+
+    if (node.matches('[data-qa*="job" i], [data-testid*="job" i], [data-test*="job" i]')) return true;
+    if (node.matches('div[class*="JobCard"], div[class*="job-card"], div[class*="JobDetails"]')) return true;
+    if (node.matches('a[href*="/jobs/"]')) return true;
+    if (node.getAttribute("role") === "link" && /jobs\//i.test(node.getAttribute("aria-label") || "")) return true;
+
+    const keywordHits = JOB_KEYWORDS.reduce((acc, re) => acc + (re.test(text) ? 1 : 0), 0);
+    if (keywordHits >= 2) return true;
+    if (text.length > 320 && keywordHits >= 1) return true;
+
+    if (node.querySelector('[data-testid*="description" i], [data-qa*="description" i]')) return true;
+
+    return Boolean(node.dataset && (node.dataset.jobId || node.dataset.jobid));
+  }
+
   function candidateNodes() {
-    // Try a few likely containers, Handshake uses a dynamic React app so we stay flexible
-    const qs = [
-      'div[class*="job-card"]',
+    const selectors = [
+      '[data-qa*="job" i]',
+      '[data-testid*="job" i]',
+      '[data-test*="job" i]',
       'div[class*="JobCard"]',
+      'div[class*="job-card"]',
+      'div[class*="JobDetails"]',
       'article',
+      'section',
+      'main',
       '[role="listitem"]',
-      'a[href*="/jobs/"]'
+      'a[href*="/jobs/"]',
+      'div[role="link"][data-job-id]'
     ];
+
     const set = new Set();
-    qs.forEach(sel => document.querySelectorAll(sel).forEach(n => set.add(n)));
+    selectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(node => {
+        if (node instanceof HTMLElement) set.add(node);
+      });
+    });
+
+    document.querySelectorAll('h1, h2').forEach(heading => {
+      if (!/job/i.test(heading.textContent || "")) return;
+      const container = heading.closest('article, section, main, div');
+      if (container && container instanceof HTMLElement) set.add(container);
+    });
+
     return Array.from(set);
   }
 
   function scanJobs() {
-    const nodes = candidateNodes();
-    nodes.forEach(node => {
+    candidateNodes().forEach(node => {
       const text = extractText(node);
-      if (!text || text.length < 40) return;
+      if (!isLikelyJobNode(node, text)) return;
       const result = analyzeJob(text);
       markCard(node, result);
     });
