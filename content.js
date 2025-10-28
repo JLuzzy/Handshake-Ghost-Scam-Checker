@@ -128,6 +128,11 @@ what up
 
   const badgeFor = new WeakMap();
   const BADGE_CLASS = "htc-badge";
+  const STATUS_CLASS = "htc-status";
+  const STATUS_VISIBLE_CLASS = "htc-status--visible";
+  const STATUS_SPINNING_CLASS = "htc-status--spinning";
+  const STATUS_TEXT_CLASS = "htc-status__text";
+  const EXTENSION_ATTR = "data-htc-extension";
   const JOB_KEYWORDS = [
     /responsibil/i,
     /qualification/i,
@@ -147,6 +152,7 @@ what up
     if (!badge || !badge.isConnected) {
       badge = document.createElement("span");
       badge.className = BADGE_CLASS;
+      badge.setAttribute(EXTENSION_ATTR, "");
       badgeFor.set(card, badge);
 
       const heading = card.querySelector(
@@ -161,6 +167,7 @@ what up
       card.style.scrollMarginTop = "96px";
     }
 
+    badge.setAttribute(EXTENSION_ATTR, "");
     badge.textContent = `${result.label} (${result.score})`;
     badge.style.backgroundColor = result.color;
     badge.title = result.reasons.length
@@ -168,6 +175,57 @@ what up
       : "No major red flags detected";
     card.setAttribute("data-htc", result.label);
     card.setAttribute("data-htc-score", String(result.score));
+  }
+
+  let statusHideTimer = 0;
+  function ensureStatusIndicator() {
+    let indicator = document.querySelector(`.${STATUS_CLASS}`);
+    if (!(indicator instanceof HTMLElement)) {
+      indicator = document.createElement("div");
+      indicator.className = STATUS_CLASS;
+      indicator.setAttribute(EXTENSION_ATTR, "");
+      indicator.setAttribute("role", "status");
+      indicator.setAttribute("aria-live", "polite");
+
+      const text = document.createElement("span");
+      text.className = STATUS_TEXT_CLASS;
+      text.setAttribute(EXTENSION_ATTR, "");
+      indicator.appendChild(text);
+
+      (document.body || document.documentElement).appendChild(indicator);
+    }
+
+    const textEl = indicator.querySelector(`.${STATUS_TEXT_CLASS}`);
+    return { indicator, textEl };
+  }
+
+  function hideStatusIndicator() {
+    const indicator = document.querySelector(`.${STATUS_CLASS}`);
+    if (!(indicator instanceof HTMLElement)) return;
+    if (statusHideTimer) {
+      clearTimeout(statusHideTimer);
+      statusHideTimer = 0;
+    }
+    indicator.classList.remove(STATUS_VISIBLE_CLASS);
+    indicator.classList.remove(STATUS_SPINNING_CLASS);
+  }
+
+  function showStatus(message, { spinning = false, hold = 2000 } = {}) {
+    const { indicator, textEl } = ensureStatusIndicator();
+    if (statusHideTimer) {
+      clearTimeout(statusHideTimer);
+      statusHideTimer = 0;
+    }
+
+    if (textEl) textEl.textContent = message;
+    indicator.classList.add(STATUS_VISIBLE_CLASS);
+    indicator.classList.toggle(STATUS_SPINNING_CLASS, spinning);
+
+    if (!spinning) {
+      statusHideTimer = window.setTimeout(() => {
+        indicator.classList.remove(STATUS_VISIBLE_CLASS);
+      }, hold);
+    }
   }
 
   function extractText(node) {
@@ -276,10 +334,13 @@ what up
 
   function scanJobs() {
     if (!isJobContext()) {
+      hideStatusIndicator();
       return;
     }
 
-    let foundAny = false;
+    showStatus("Scanning…", { spinning: true });
+
+    let markedCount = 0;
 
     candidateNodes().forEach(node => {
       const text = extractText(node);
@@ -287,31 +348,56 @@ what up
       if (!text) return;
       const result = analyzeJob(text);
       markCard(node, result);
-      foundAny = true;
+      markedCount += 1;
     });
 
-    if (!foundAny) {
+    if (!markedCount) {
       const fallback = findPrimaryJobContainer();
       if (fallback) {
         const text = extractText(fallback);
         if (text) {
           const result = analyzeJob(text);
           markCard(fallback, result);
+          markedCount += 1;
         }
       }
     }
+
+    const summary = markedCount
+      ? (markedCount === 1
+          ? "Scan complete — rated 1 posting"
+          : `Scan complete — rated ${markedCount} postings`)
+      : "Scan complete — no job content found";
+
+    requestAnimationFrame(() => {
+      showStatus(summary, { hold: 2200 });
+    });
   }
 
   function isJobContext() {
-    if (/\bjob\b/i.test(document.body?.dataset?.page || "")) {
+    const bodyDataset = document.body?.dataset?.page || "";
+    if (/\bjob\b/i.test(bodyDataset)) {
       return true;
     }
 
-    if (/\/jobs\b/i.test(location.pathname)) {
+    const path = location.pathname || "";
+    if (/\/jobs\b/i.test(path) || /\/job\b/i.test(path) || /\/stu\/jobs\//i.test(path)) {
       return true;
     }
 
-    return Boolean(document.querySelector('[data-testid*="job" i], [data-qa*="job" i], [data-test*="job" i]'));
+    if (document.querySelector('[data-testid*="job" i], [data-qa*="job" i], [data-test*="job" i]')) {
+      return true;
+    }
+
+    const primary = findPrimaryJobContainer();
+    if (primary) {
+      const text = extractText(primary);
+      if (text.length >= 80) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   let scanScheduled = false;
@@ -356,7 +442,7 @@ what up
       }
 
       const meaningful = Array.from(m.addedNodes).some(node => {
-        return node.nodeType === Node.ELEMENT_NODE && !(node instanceof HTMLElement && node.classList.contains(BADGE_CLASS));
+        return node.nodeType === Node.ELEMENT_NODE && !(node instanceof HTMLElement && node.hasAttribute(EXTENSION_ATTR));
       });
 
       if (meaningful) {

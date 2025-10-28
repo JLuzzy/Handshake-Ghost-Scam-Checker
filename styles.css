@@ -15,3 +15,47 @@
   margin-left: 8px;
   margin-top: 0;
 }
+
+.htc-status{
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #fff;
+  font: 600 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.28);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .18s ease, transform .18s ease;
+  pointer-events: none;
+}
+
+.htc-status--visible{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.htc-status--spinning::before{
+  content: "";
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.28);
+  border-top-color: #fff;
+  animation: htc-spin .8s linear infinite;
+}
+
+.htc-status__text{
+  letter-spacing: 0.01em;
+}
+
+@keyframes htc-spin{
+  to{transform: rotate(360deg);}
+}
