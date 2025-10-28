@@ -127,6 +127,7 @@ what up
   }
 
   const badgeFor = new WeakMap();
+  const BADGE_CLASS = "htc-badge";
   const JOB_KEYWORDS = [
     /responsibil/i,
     /qualification/i,
@@ -145,7 +146,7 @@ what up
     let badge = badgeFor.get(card);
     if (!badge || !badge.isConnected) {
       badge = document.createElement("span");
-      badge.className = "htc-badge";
+      badge.className = BADGE_CLASS;
       badgeFor.set(card, badge);
 
       const heading = card.querySelector(
@@ -274,6 +275,10 @@ what up
   }
 
   function scanJobs() {
+    if (!isJobContext()) {
+      return;
+    }
+
     let foundAny = false;
 
     candidateNodes().forEach(node => {
@@ -295,6 +300,28 @@ what up
         }
       }
     }
+  }
+
+  function isJobContext() {
+    if (/\bjob\b/i.test(document.body?.dataset?.page || "")) {
+      return true;
+    }
+
+    if (/\/jobs\b/i.test(location.pathname)) {
+      return true;
+    }
+
+    return Boolean(document.querySelector('[data-testid*="job" i], [data-qa*="job" i], [data-test*="job" i]'));
+  }
+
+  let scanScheduled = false;
+  function scheduleScan() {
+    if (scanScheduled) return;
+    scanScheduled = true;
+    requestAnimationFrame(() => {
+      scanScheduled = false;
+      scanJobs();
+    });
   }
 
   function findPrimaryJobContainer() {
@@ -324,8 +351,16 @@ what up
   // Observe SPA updates
   const observer = new MutationObserver((muts) => {
     for (const m of muts) {
-      if (m.addedNodes && m.addedNodes.length) {
-        scanJobs();
+      if (!m.addedNodes || !m.addedNodes.length) {
+        continue;
+      }
+
+      const meaningful = Array.from(m.addedNodes).some(node => {
+        return node.nodeType === Node.ELEMENT_NODE && !(node instanceof HTMLElement && node.classList.contains(BADGE_CLASS));
+      });
+
+      if (meaningful) {
+        scheduleScan();
         break;
       }
     }
@@ -335,11 +370,12 @@ what up
   // Listen for manual trigger from popup
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "HANDSHAKE_SCAN") {
-      scanJobs();
+      scheduleScan();
       sendResponse({ ok: true });
     }
   });
 
   // Initial scan after load
-  setTimeout(scanJobs, 600);
+  setTimeout(scheduleScan, 400);
+  scheduleScan();
 })();
