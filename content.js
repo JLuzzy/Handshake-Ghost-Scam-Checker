@@ -8,31 +8,103 @@ what up
 */
 
 (function() {
-  const RED_FLAGS = [
-    /immediate\s*hire/i,
-    /no\s*experience\s*required/i,
-    /work from home and earn thousands/i,
-    /send\s*payment/i,
-    /training\s*fee/i,
-    /quick\s*money/i,
-    /wire\s*transfer/i,
-    /gift\s*cards?/i,
-    /telegram|whatsapp|signal/i,
-    /crypto(?:currency)?/i,
-    /upfront\s*fee/i
+  const RED_FLAG_RULES = [
+    {
+      pattern: /immediate\s*hire/i,
+      message: "Mentions immediate hire, which can be a pressure tactic.",
+      deduction: 12
+    },
+    {
+      pattern: /no\s*experience\s*required/i,
+      message: "Promises no experience required, a common scam lure.",
+      deduction: 12
+    },
+    {
+      pattern: /work from home and earn thousands/i,
+      message: "Highlights unusually high work-from-home pay.",
+      deduction: 12
+    },
+    {
+      pattern: /send\s*payment/i,
+      message: "Requests sending payment, which is a major warning sign.",
+      deduction: 12
+    },
+    {
+      pattern: /training\s*fee/i,
+      message: "Mentions training fees, which legitimate employers rarely require.",
+      deduction: 12
+    },
+    {
+      pattern: /quick\s*money/i,
+      message: "Promises quick money, often associated with scams.",
+      deduction: 12
+    },
+    {
+      pattern: /wire\s*transfer/i,
+      message: "References wire transfers, which scammers frequently exploit.",
+      deduction: 12
+    },
+    {
+      pattern: /gift\s*cards?/i,
+      message: "Talks about gift cards, another scam payment method.",
+      deduction: 12
+    },
+    {
+      pattern: /telegram|whatsapp|signal/i,
+      message: "Directs you to encrypted messengers (Telegram/WhatsApp/Signal).",
+      deduction: 12
+    },
+    {
+      pattern: /crypto(?:currency)?/i,
+      message: "Discusses cryptocurrency, which scammers may use to hide funds.",
+      deduction: 12
+    },
+    {
+      pattern: /upfront\s*fee/i,
+      message: "Asks for an upfront fee, a key scam indicator.",
+      deduction: 12
+    }
   ];
 
   function analyzeJob(jobText) {
     let score = 100;
     const text = jobText.toLowerCase();
+    const reasons = [];
 
     // Heuristic deductions
-    RED_FLAGS.forEach(re => { if (re.test(text)) score -= 12; });
-    if (text.length < 120) score -= 10;                     // very short description
-    if (/\$?\s*\d{1,3},?\d{3,}/.test(text) && /per\s*week|daily|day/.test(text)) score -= 10; // big weekly pay
-    if (/apply\s+via\s+google\s+form|docs\.google\.com\/forms/i.test(text)) score -= 8;
-    if (/contact\s+via\s+dm|direct\s+message/.test(text)) score -= 6;
-    if ((text.match(/[A-Z]{3,}/g) || []).length > 15) score -= 4; // shouty caps
+    RED_FLAG_RULES.forEach(rule => {
+      if (rule.pattern.test(text)) {
+        score -= rule.deduction;
+        reasons.push(rule.message);
+      }
+    });
+
+    if (text.length < 120) {
+      score -= 10;
+      reasons.push("Description is very short, leaving out important details.");
+    }
+
+    if (/\$?\s*\d{1,3},?\d{3,}/.test(text) && /per\s*week|daily|day/.test(text)) {
+      score -= 10;
+      reasons.push("Advertises very high short-term pay, which can be unrealistic.");
+    }
+
+    if (/apply\s+via\s+google\s+form|docs\.google\.com\/forms/i.test(text)) {
+      score -= 8;
+      reasons.push("Application happens through an informal Google Form.");
+    }
+
+    if (/contact\s+via\s+dm|direct\s+message/.test(text)) {
+      score -= 6;
+      reasons.push("Asks to continue via direct messages instead of official channels.");
+    }
+
+    if ((text.match(/[A-Z]{3,}/g) || []).length > 15) {
+      score -= 4;
+      reasons.push("Uses a lot of all-caps text for emphasis, which is a spam signal.");
+    }
+
+    score = Math.max(0, Math.min(100, score));
 
     const label = score >= 80 ? "High Trust"
                 : score >= 50 ? "Medium Trust"
@@ -40,7 +112,16 @@ what up
     const color = score >= 80 ? "#16a34a"
                 : score >= 50 ? "#f59e0b"
                 : "#dc2626";
-    return { score: Math.max(0, Math.min(100, score)), label, color };
+
+    if (label === "High Trust" && reasons.length === 0) {
+      reasons.push("No obvious scam signals detected in this description.");
+    }
+
+    if (label === "Low Trust") {
+      reasons.push("Treat this listing cautiously and verify the employer before proceeding.");
+    }
+
+    return { score, label, color, reasons };
   }
 
   const badgeFor = new WeakMap();
@@ -61,7 +142,7 @@ what up
   function markCard(card, result) {
     let badge = badgeFor.get(card);
     if (!badge || !badge.isConnected) {
-      badge = document.createElement("span");
+      badge = document.createElement("div");
       badge.className = "htc-badge";
       badgeFor.set(card, badge);
 
@@ -75,9 +156,32 @@ what up
         card.appendChild(badge);
       }
       card.style.scrollMarginTop = "96px";
+
+      const ratingLine = document.createElement("div");
+      ratingLine.className = "htc-badge-rating";
+      badge.appendChild(ratingLine);
+
+      const summaryList = document.createElement("ul");
+      summaryList.className = "htc-badge-summary";
+      badge.appendChild(summaryList);
     }
 
-    badge.textContent = `${result.label} (${result.score})`;
+    const ratingLine = badge.querySelector(".htc-badge-rating");
+    const summaryList = badge.querySelector(".htc-badge-summary");
+
+    if (ratingLine) {
+      ratingLine.textContent = `${result.label} (${result.score})`;
+    }
+
+    if (summaryList) {
+      summaryList.innerHTML = "";
+      result.reasons.forEach(reason => {
+        const li = document.createElement("li");
+        li.textContent = reason;
+        summaryList.appendChild(li);
+      });
+    }
+
     badge.style.backgroundColor = result.color;
     card.setAttribute("data-htc", result.label);
     card.setAttribute("data-htc-score", String(result.score));
@@ -137,12 +241,34 @@ what up
     return Array.from(set);
   }
 
+  function elementDepth(node) {
+    let depth = 0;
+    let current = node;
+    while (current && current.parentElement) {
+      depth += 1;
+      current = current.parentElement;
+    }
+    return depth;
+  }
+
   function scanJobs() {
-    candidateNodes().forEach(node => {
+    const handled = new Set();
+    const nodes = candidateNodes().sort((a, b) => elementDepth(b) - elementDepth(a));
+
+    nodes.forEach(node => {
+      let shouldSkip = false;
+      handled.forEach(processed => {
+        if (!shouldSkip && node.contains(processed)) {
+          shouldSkip = true;
+        }
+      });
+      if (shouldSkip) return;
+
       const text = extractText(node);
       if (!isLikelyJobNode(node, text)) return;
       const result = analyzeJob(text);
       markCard(node, result);
+      handled.add(node);
     });
   }
 

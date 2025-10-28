@@ -2,18 +2,39 @@
 .htc-badge{
   display: inline-block;
   color: #fff;
-  padding: 4px 8px;
-  border-radius: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
   margin-top: 6px;
-  font: 600 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  font: 600 12px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  box-shadow: 0 1px 4px rgba(0,0,0,.16);
+  max-width: 320px;
 }
 
 .htc-badge-inline{
   display: inline-flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   margin-left: 8px;
   margin-top: 0;
+}
+
+.htc-badge-rating{
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.htc-badge-summary{
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  list-style: disc;
+}
+
+.htc-badge-summary li + li{
+  margin-top: 2px;
 }
 
 .htc-spinner-overlay{
