@@ -95,6 +95,13 @@ what up
   ];
 
   const SECTION_EXCLUDE_PATTERNS = /(similar jobs|recommended jobs|more jobs like this|people also viewed|other opportunities)/i;
+  const JOB_PATH_PATTERNS = [
+    /\/jobs\b/i,
+    /\/job\b/i,
+    /\/stu\/jobs\//i,
+    /\/stu\/postings\//i,
+    /\/postings\//i
+  ];
 
   function analyzeJob(jobText) {
     let score = 100;
@@ -305,12 +312,21 @@ what up
       '[data-qa*="job" i]',
       '[data-testid*="job" i]',
       '[data-test*="job" i]',
+      '[data-testid*="view-job" i]',
+      '[data-testid*="viewjob" i]',
+      '[data-testid*="job-body" i]',
+      '[data-qa*="view-job" i]',
+      '[data-qa*="viewjob" i]',
+      '[data-qa*="job-body" i]',
       'div[class*="JobCard"]',
       'div[class*="job-card"]',
       'div[class*="JobDetails"]',
+      'div[class*="ViewJob"]',
+      'div[class*="jobBody"]',
       'article',
       'section',
       'main',
+      '[role="main"]',
       '[role="listitem"]',
       'a[href*="/jobs/"]',
       'div[role="link"][data-job-id]'
@@ -334,7 +350,12 @@ what up
 
   function scanJobs() {
     if (!isJobContext()) {
-      hideStatusIndicator();
+      const path = location.pathname || "";
+      if (JOB_PATH_PATTERNS.some(re => re.test(path))) {
+        showStatus("Waiting for job posting…", { spinning: true });
+      } else {
+        hideStatusIndicator();
+      }
       return;
     }
 
@@ -352,7 +373,7 @@ what up
     });
 
     if (!markedCount) {
-      const fallback = findPrimaryJobContainer();
+      const fallback = findPrimaryJobContainer({ minimumText: 20 });
       if (fallback) {
         const text = extractText(fallback);
         if (text) {
@@ -375,24 +396,43 @@ what up
   }
 
   function isJobContext() {
-    const bodyDataset = document.body?.dataset?.page || "";
-    if (/\bjob\b/i.test(bodyDataset)) {
+    const dataset = document.body?.dataset || {};
+    const datasetValues = Object.values(dataset).join(" ");
+    if (/\bjob\b/i.test(datasetValues)) {
       return true;
     }
 
     const path = location.pathname || "";
-    if (/\/jobs\b/i.test(path) || /\/job\b/i.test(path) || /\/stu\/jobs\//i.test(path)) {
+    if (JOB_PATH_PATTERNS.some(re => re.test(path))) {
       return true;
     }
 
-    if (document.querySelector('[data-testid*="job" i], [data-qa*="job" i], [data-test*="job" i]')) {
+    if (document.querySelector('[data-testid*="job" i], [data-qa*="job" i], [data-test*="job" i], [data-testid*="view-job" i], [data-testid*="viewjob" i], [data-testid*="job-body" i], [data-qa*="view-job" i], [data-qa*="viewjob" i], [data-qa*="job-body" i]')) {
       return true;
     }
 
-    const primary = findPrimaryJobContainer();
+    const metaType = document.querySelector('meta[property="og:type"], meta[name="og:type"], meta[name="handshake-job-id"], meta[property="handshake:job-id"]');
+    const metaContent = metaType?.getAttribute("content") || metaType?.content || "";
+    if (/job|posting/i.test(metaContent)) {
+      return true;
+    }
+
+    const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of ldScripts) {
+      try {
+        const text = script.textContent || "";
+        if (text && /JobPosting/i.test(text)) {
+          return true;
+        }
+      } catch (err) {
+        // ignore JSON parse issues
+      }
+    }
+
+    const primary = findPrimaryJobContainer({ minimumText: 24 });
     if (primary) {
       const text = extractText(primary);
-      if (text.length >= 80) {
+      if (text.length >= 60) {
         return true;
       }
     }
@@ -410,11 +450,21 @@ what up
     });
   }
 
-  function findPrimaryJobContainer() {
+  function findPrimaryJobContainer(options = {}) {
+    const { minimumText = 40 } = options;
     const selectors = [
       '[data-testid*="job-details" i]',
       '[data-testid*="job-view" i]',
+      '[data-testid*="view-job" i]',
+      '[data-testid*="viewjob" i]',
+      '[data-testid*="job-body" i]',
       '[data-qa*="job-details" i]',
+      '[data-qa*="view-job" i]',
+      '[data-qa*="viewjob" i]',
+      '[data-qa*="job-body" i]',
+      '[role="main"] article',
+      '[role="main"] section',
+      '[role="main"]',
       'main article',
       'main section',
       'main',
@@ -425,7 +475,7 @@ what up
       const node = document.querySelector(sel);
       if (node && node instanceof HTMLElement && !isInExcludedSection(node)) {
         const text = extractText(node);
-        if (text.length >= 40) {
+        if (text.length >= minimumText) {
           return node;
         }
       }
