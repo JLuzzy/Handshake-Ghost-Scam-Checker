@@ -236,6 +236,9 @@ what up
   }
 
   function extractText(node) {
+    if (!(node instanceof HTMLElement)) return "";
+    if (!node.isConnected) return "";
+
     // Prefer innerText to include visible text only
     const raw = (node.innerText || node.textContent || "").trim();
     if (!raw) return "";
@@ -307,27 +310,28 @@ what up
     return false;
   }
 
-  function candidateNodes() {
+  const lastContentForNode = new WeakMap();
+
+  function candidateNodes(primaryCandidate) {
     const selectors = [
-      '[data-qa*="job" i]',
-      '[data-testid*="job" i]',
-      '[data-test*="job" i]',
+      '[data-testid*="job-details" i]',
+      '[data-testid*="job-view" i]',
       '[data-testid*="view-job" i]',
       '[data-testid*="viewjob" i]',
       '[data-testid*="job-body" i]',
+      '[data-qa*="job-details" i]',
       '[data-qa*="view-job" i]',
       '[data-qa*="viewjob" i]',
       '[data-qa*="job-body" i]',
+      'main [data-testid*="job" i]',
+      'main [data-qa*="job" i]',
       'div[class*="JobCard"]',
       'div[class*="job-card"]',
       'div[class*="JobDetails"]',
       'div[class*="ViewJob"]',
       'div[class*="jobBody"]',
-      'article',
-      'section',
-      'main',
-      '[role="main"]',
-      '[role="listitem"]',
+      'article[data-testid*="job" i]',
+      'section[data-testid*="job" i]',
       'a[href*="/jobs/"]',
       'div[role="link"][data-job-id]'
     ];
@@ -338,6 +342,10 @@ what up
         if (node instanceof HTMLElement) set.add(node);
       });
     });
+
+    if (primaryCandidate) {
+      set.add(primaryCandidate);
+    }
 
     document.querySelectorAll('h1, h2').forEach(heading => {
       if (!/job/i.test(heading.textContent || "")) return;
@@ -363,22 +371,41 @@ what up
 
     let markedCount = 0;
 
-    candidateNodes().forEach(node => {
+    const primary = findPrimaryJobContainer({ minimumText: 32 });
+    const nodes = candidateNodes(primary);
+    const MAX_ANALYZED_PER_SCAN = 6;
+
+    nodes.some(node => {
+      if (isInExcludedSection(node)) return false;
       const text = extractText(node);
       if (!isLikelyJobNode(node, text)) return;
       if (!text) return;
+
+      if (lastContentForNode.get(node) === text) {
+        if (badgeFor.get(node)) {
+          markedCount += 1;
+        }
+        return false;
+      }
+
       const result = analyzeJob(text);
       markCard(node, result);
+      lastContentForNode.set(node, text);
       markedCount += 1;
+      if (markedCount >= MAX_ANALYZED_PER_SCAN) {
+        return true;
+      }
+      return false;
     });
 
     if (!markedCount) {
-      const fallback = findPrimaryJobContainer({ minimumText: 20 });
+      const fallback = primary || findPrimaryJobContainer({ minimumText: 20 });
       if (fallback) {
         const text = extractText(fallback);
         if (text) {
           const result = analyzeJob(text);
           markCard(fallback, result);
+          lastContentForNode.set(fallback, text);
           markedCount += 1;
         }
       }
@@ -440,14 +467,24 @@ what up
     return false;
   }
 
-  let scanScheduled = false;
-  function scheduleScan() {
-    if (scanScheduled) return;
-    scanScheduled = true;
-    requestAnimationFrame(() => {
-      scanScheduled = false;
+  let scanTimer = 0;
+  const SCAN_DEBOUNCE_MS = 180;
+  function scheduleScan(options = {}) {
+    const { immediate = false } = options;
+    if (scanTimer) {
+      clearTimeout(scanTimer);
+      scanTimer = 0;
+    }
+
+    if (immediate) {
       scanJobs();
-    });
+      return;
+    }
+
+    scanTimer = window.setTimeout(() => {
+      scanTimer = 0;
+      scanJobs();
+    }, SCAN_DEBOUNCE_MS);
   }
 
   function findPrimaryJobContainer(options = {}) {
@@ -506,12 +543,12 @@ what up
   // Listen for manual trigger from popup
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "HANDSHAKE_SCAN") {
-      scheduleScan();
+      scheduleScan({ immediate: true });
       sendResponse({ ok: true });
     }
   });
 
   // Initial scan after load
-  setTimeout(scheduleScan, 400);
+  setTimeout(() => scheduleScan({ immediate: true }), 420);
   scheduleScan();
 })();

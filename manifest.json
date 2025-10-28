@@ -5,7 +5,8 @@
   "description": "Detect and highlight potential scam or ghost job listings on Handshake.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "content_scripts": [
     {
