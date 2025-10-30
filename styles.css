@@ -1,17 +1,85 @@
 /* Handshake Trust Checker styles */
-.htc-badge{
+
+/* Simple badge for job cards */
+.htc-badge-simple {
   display: inline-block;
   color: #fff;
   padding: 4px 8px;
   border-radius: 10px;
-  margin-top: 6px;
+  margin: 6px 0;
   font: 600 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
   box-shadow: 0 1px 2px rgba(0,0,0,.15);
 }
 
-.htc-badge-inline{
+/* Detailed badge container */
+.htc-badge-container {
+  margin: 12px 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* Detailed badge */
+.htc-badge-detailed {
   display: inline-flex;
   align-items: center;
-  margin-left: 8px;
+  gap: 6px;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+  user-select: none;
+}
+
+.htc-score {
+  font-weight: 600;
+}
+
+.htc-info-icon {
+  font-size: 14px;
+  opacity: 0.9;
+  font-weight: normal;
+}
+
+/* Expandable details section - always visible */
+.htc-details {
+  margin-top: 8px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-left: 3px solid #666;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #333;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+
+.htc-details-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #222;
+}
+
+.htc-reasons {
+  margin: 0;
+  padding-left: 20px;
+  list-style: none;
+}
+
+.htc-reasons li {
+  margin: 4px 0;
+  position: relative;
+}
+
+.htc-reasons li::before {
+  content: "•";
+  position: absolute;
+  left: -14px;
+  color: #666;
+  font-weight: bold;
+}
+
+.htc-reasons li:first-child {
   margin-top: 0;
 }
