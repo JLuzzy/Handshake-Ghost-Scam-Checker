@@ -1,6 +1,10 @@
-/* Handshake Trust Checker content script */
+/* Handshake Trust Checker – auto-scan + no-duplicate detailed badge */
+(function () {
+  // --- singleton guard ---
+  if (window.__HTC_INIT__) return;
+  window.__HTC_INIT__ = true;
 
-(function() {
+  // ====== CONFIG / RULES ======
   const RED_FLAGS = [
     { pattern: /immediate\s*hire/i, name: "Immediate hire pressure", weight: 12 },
     { pattern: /no\s*experience\s*(required|needed)/i, name: "No experience required", weight: 8 },
@@ -16,399 +20,344 @@
     { pattern: /apply\s+via\s+google\s+form|docs\.google\.com\/forms/i, name: "External application form", weight: 8 },
     { pattern: /contact\s+via\s+dm|direct\s+message/i, name: "DM-only contact", weight: 6 },
     { pattern: /\$\d{1,3},?\d{3,}\+?\s*per\s*(week|day)/i, name: "Unusually high weekly/daily pay", weight: 10 },
-    { pattern: /limited\s*spots?|only\s*\d+\s*positions?/i, name: "Artificial scarcity", weight: 5 }
+    { pattern: /limited\s*spots?|only\s*\d+\s*positions?/i, name: "Artificial scarcity", weight: 5 },
   ];
+
+  const JOB_KEYWORDS = [
+    /responsibil/i, /qualification/i, /requirement/i, /preferred/i, /benefits?/i,
+    /job description/i, /application deadline/i, /what you'll do/i, /who you are/i, /about the role/i, /apply now/i
+  ];
+
+  // ====== UTILS ======
+  const byId = (id) => document.getElementById(id);
+  const textOf = (n) => (n?.innerText || n?.textContent || "").trim();
+  const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+  const DETAIL_ROOT_ID = "htc-detailed-badge-root";
+  const SIMPLE_CLASS = "htc-badge htc-badge-simple";
+  const BADGED_ATTR = "data-htc";
 
   function analyzeJob(jobText, includeReasons = false) {
     let score = 100;
     const reasons = [];
-    const text = jobText.toLowerCase();
+    const text = (jobText || "").toLowerCase();
 
-    // Check red flags
     RED_FLAGS.forEach(flag => {
       if (flag.pattern.test(text)) {
         score -= flag.weight;
-        if (includeReasons) {
-          reasons.push(`-${flag.weight}: ${flag.name}`);
-        }
+        if (includeReasons) reasons.push(flag.name);
       }
     });
 
-    // Very short description
-    if (text.length < 120) {
-      score -= 10;
-      if (includeReasons) reasons.push("-10: Suspiciously short description");
-    }
-
-    // Excessive caps
-    const capsWords = text.match(/[A-Z]{3,}/g) || [];
-    if (capsWords.length > 15) {
-      score -= 4;
-      if (includeReasons) reasons.push("-4: Excessive use of capital letters");
-    }
+    if (text.length < 120) { score -= 10; if (includeReasons) reasons.push("Suspiciously short description"); }
+    const capsWords = jobText.match(/[A-Z]{3,}/g) || [];
+    if (capsWords.length > 15) { score -= 4; if (includeReasons) reasons.push("Excessive use of capital letters"); }
 
     if (includeReasons) {
-      // Missing key sections
       const hasResponsibilities = /responsibilit|duties|what you('ll| will) do/i.test(text);
       const hasQualifications = /qualification|requirement|skills|experience/i.test(text);
       const hasCompanyInfo = /about (us|the company|our (team|company))/i.test(text);
-      
-      if (!hasResponsibilities && text.length > 200) {
-        score -= 8;
-        reasons.push("-8: Missing job responsibilities");
-      }
-      if (!hasQualifications && text.length > 200) {
-        score -= 8;
-        reasons.push("-8: Missing qualifications/requirements");
-      }
-      if (!hasCompanyInfo && text.length > 300) {
-        score -= 5;
-        reasons.push("-5: Missing company information");
-      }
 
-      // Positive signals
-      if (text.length > 500 && hasResponsibilities && hasQualifications) {
-        reasons.push("✓ Detailed, structured job posting");
-      }
-      if (/benefits|health insurance|401k|pto|paid time off/i.test(text)) {
-        reasons.push("✓ Benefits mentioned");
-      }
-      if (/equal opportunity employer|eeo|diversity/i.test(text)) {
-        reasons.push("✓ Professional EEO statement");
-      }
+      if (!hasResponsibilities && text.length > 200) { score -= 8; reasons.push("Missing job responsibilities"); }
+      if (!hasQualifications && text.length > 200) { score -= 8; reasons.push("Missing qualifications/requirements"); }
+      if (!hasCompanyInfo && text.length > 300) { score -= 5; reasons.push("Missing company information"); }
 
-      if (reasons.length === 0) {
-        reasons.push("✓ No red flags detected");
-      }
+      if (text.length > 500 && hasResponsibilities && hasQualifications) reasons.push("✓ Detailed, structured job posting");
+      if (/benefits|health insurance|401k|pto|paid time off/i.test(text)) reasons.push("✓ Benefits mentioned");
+      if (/equal opportunity employer|eeo|diversity/i.test(text)) reasons.push("✓ Professional EEO statement");
+      if (reasons.length === 0) reasons.push("✓ No red flags detected");
     }
 
     const finalScore = Math.max(0, Math.min(100, score));
-    const label = finalScore >= 80 ? "High Trust"
-                : finalScore >= 50 ? "Medium Trust"
-                : "Low Trust";
-    const color = finalScore >= 80 ? "#16a34a"
-                : finalScore >= 50 ? "#f59e0b"
-                : "#dc2626";
-    
+    const label = finalScore >= 80 ? "High Trust" : finalScore >= 50 ? "Medium Trust" : "Low Trust";
+    const color = finalScore >= 80 ? "#16a34a" : finalScore >= 50 ? "#f59e0b" : "#dc2626";
     return { score: finalScore, label, color, reasons: reasons.slice(0, 6) };
   }
 
+  // ====== STATE ======
   const badgeFor = new WeakMap();
   const detailedBadgeFor = new WeakMap();
-  
-  const JOB_KEYWORDS = [
-    /responsibil/i,
-    /qualification/i,
-    /requirement/i,
-    /preferred/i,
-    /benefits?/i,
-    /job description/i,
-    /application deadline/i,
-    /what you'll do/i,
-    /who you are/i,
-    /about the role/i,
-    /apply now/i
-  ];
+  let lastScannedUrl = "";
+  let expandAttempted = false; // Track if we've tried to expand on this page
 
-  // Simple badge for job cards in list view
-  function markCard(card, result) {
-    if (badgeFor.has(card) && badgeFor.get(card).isConnected) {
-      return; // Already has a badge
-    }
-
-    const badge = document.createElement("span");
-    badge.className = "htc-badge htc-badge-simple";
-    badge.textContent = `${result.label} (${result.score})`;
-    badge.style.backgroundColor = result.color;
-    badgeFor.set(card, badge);
-
-    const heading = card.querySelector(
-      'h1, h2, h3, h4, [data-testid*="title" i], [data-qa*="title" i], [class*="title" i]'
-    );
-    
-    if (heading) {
-      heading.style.position = 'relative';
-      heading.insertAdjacentElement("afterend", badge);
-    } else {
-      card.insertAdjacentElement("afterbegin", badge);
-    }
-
-    card.setAttribute("data-htc", result.label);
-    card.setAttribute("data-htc-score", String(result.score));
+  function resetForNewRoute() {
+    expandAttempted = false;
+    lastScannedUrl = location.href;
+    // remove old detailed badge so a fresh one can render
+    const old = byId(DETAIL_ROOT_ID);
+    if (old?.parentNode) old.parentNode.removeChild(old);
   }
 
-  // Detailed badge for opened job postings
-  function markDetailedJobPosting(container, result) {
-    // Check if this container or any parent already has a badge
-    if (detailedBadgeFor.has(container) && detailedBadgeFor.get(container).isConnected) {
-      return; // Already has detailed badge
-    }
+  // ====== AUTO-EXPAND ======
+  function autoExpandJobDescription() {
+    if (expandAttempted) return false; // Only try once per page
+    expandAttempted = true;
     
-    // Check if there's already a badge in this container
-    if (container.querySelector('.htc-badge-container')) {
-      return;
-    }
+    // Common patterns for "Show More", "Read More", "See Full Description" buttons
+    const expandSelectors = [
+      'button[aria-label*="more" i]',
+      'button[aria-label*="expand" i]',
+      '[role="button"][aria-expanded="false"]',
+      'button[class*="expand" i]',
+      'button[class*="more" i]',
+      'a[class*="show-more" i]',
+      '.show-more-button',
+      '.read-more-button'
+    ];
 
-    const badgeContainer = document.createElement("div");
-    badgeContainer.className = "htc-badge-container";
-    detailedBadgeFor.set(container, badgeContainer);
-
-    badgeContainer.innerHTML = `
-      <div class="htc-badge htc-badge-detailed" style="background-color: ${result.color}">
-        <span class="htc-score">${result.label} (${result.score})</span>
-      </div>
-      <div class="htc-details">
-        <div class="htc-details-header">Analysis:</div>
-        <ul class="htc-reasons">
-          ${result.reasons.map(r => `<li>${r}</li>`).join('')}
-        </ul>
-      </div>
-    `;
-
-    const heading = container.querySelector('h1, h2, [data-testid*="title" i], [data-qa*="title" i]');
-    if (heading) {
-      heading.insertAdjacentElement("afterend", badgeContainer);
-    } else {
-      container.insertAdjacentElement("afterbegin", badgeContainer);
-    }
-
-    container.setAttribute("data-htc-detailed", result.label);
+    let clicked = false;
     
-    console.log(`[HTC] Added detailed badge with score ${result.score}`);
+    // Try each selector
+    for (const selector of expandSelectors) {
+      try {
+        const buttons = document.querySelectorAll(selector);
+        buttons.forEach(btn => {
+          // Check if button text suggests it's an expand button
+          const text = (btn.textContent || btn.getAttribute('aria-label') || '').toLowerCase();
+          if (/more|expand|full|complete|entire/i.test(text) && btn.offsetParent !== null) {
+            console.log('[HTC] Auto-clicking expand button:', text);
+            btn.click();
+            clicked = true;
+          }
+        });
+      } catch (e) {
+        // Selector might not be valid, continue
+      }
+    }
+
+    // Also look for any button within the job description area
+    const mainContent = document.querySelector('main, [role="main"]');
+    if (mainContent) {
+      const buttons = Array.from(mainContent.querySelectorAll('button, [role="button"]'));
+      buttons.forEach(btn => {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        if ((text === 'more' || text === 'show more' || text === 'read more' || text === 'see more') && btn.offsetParent !== null) {
+          console.log('[HTC] Auto-clicking expand button in main:', text);
+          btn.click();
+          clicked = true;
+        }
+      });
+    }
+
+    return clicked;
   }
 
-  function extractText(node) {
-    return (node.innerText || node.textContent || "").trim();
+  // ====== DETECTION ======
+  function candidateJobCards() {
+    const selectors = [
+      '[data-qa*="job" i]','[data-testid*="job" i]','div[class*="JobCard"]','div[class*="job-card"]',
+      'div[class*="job-list-item"]','a[href*="/jobs/"]','[role="listitem"]'
+    ];
+    const set = new Set();
+    selectors.forEach(sel => {
+      try { document.querySelectorAll(sel).forEach(node => { if (node instanceof HTMLElement) set.add(node); }); } catch {}
+    });
+    return Array.from(set);
   }
 
   function isLikelyJobCard(node, text) {
     if (!text || text.length < 40) return false;
-
-    // Check for job-related attributes
-    if (node.matches('[data-qa*="job" i], [data-testid*="job" i], [data-test*="job" i]')) return true;
-    if (node.matches('div[class*="JobCard"], div[class*="job-card"], div[class*="job-list-item"]')) return true;
-    if (node.matches('a[href*="/jobs/"]')) return true;
-    if (node.matches('[role="listitem"]') && /job/i.test(text)) return true;
-
-    // Check for job keywords
-    const keywordHits = JOB_KEYWORDS.reduce((acc, re) => acc + (re.test(text) ? 1 : 0), 0);
-    if (keywordHits >= 2 && text.length < 1000) return true;
-
-    return false;
-  }
-
-  function candidateJobCards() {
-    const selectors = [
-      '[data-qa*="job" i]',
-      '[data-testid*="job" i]',
-      'div[class*="JobCard"]',
-      'div[class*="job-card"]',
-      'div[class*="job-list-item"]',
-      'a[href*="/jobs/"]',
-      '[role="listitem"]'
-    ];
-
-    const set = new Set();
-    selectors.forEach(sel => {
-      try {
-        document.querySelectorAll(sel).forEach(node => {
-          if (node instanceof HTMLElement) set.add(node);
-        });
-      } catch (e) {
-        // Ignore selector errors
-      }
-    });
-
-    return Array.from(set);
+    try {
+      if (node.matches('[data-qa*="job" i], [data-testid*="job" i], [data-test*="job" i]')) return true;
+      if (node.matches('div[class*="JobCard"], div[class*="job-card"], div[class*="job-list-item"]')) return true;
+      if (node.matches('a[href*="/jobs/"]')) return true;
+      if (node.matches('[role="listitem"]') && /job/i.test(text)) return true;
+    } catch {}
+    const hits = JOB_KEYWORDS.reduce((n, re) => n + (re.test(text) ? 1 : 0), 0);
+    return hits >= 2 && text.length < 1000;
   }
 
   function findMainJobContent() {
-    console.log("[HTC] Looking for main job content...");
-    
-    // Try multiple strategies to find the main job posting
     const strategies = [
-      // Strategy 1: Look for main content areas with substantial text
       () => {
         const main = document.querySelector('main, [role="main"], #main-content');
         if (main) {
-          // Find the largest text block that's not in a sidebar
           const candidates = Array.from(main.querySelectorAll('div, section, article'))
             .filter(el => {
-              const text = extractText(el);
-              // Must have substantial text and job-related content
-              return text.length > 400 && 
-                     /responsibilit|qualification|requirement|description/i.test(text) &&
+              const t = textOf(el);
+              return t.length > 400 &&
+                     /responsibilit|qualification|requirement|description/i.test(t) &&
                      !el.closest('[class*="sidebar" i], [class*="similar" i], aside') &&
-                     !el.querySelector('.htc-badge-container'); // Skip if already has badge
+                     !el.querySelector('.htc-badge-container');
             })
-            .sort((a, b) => extractText(b).length - extractText(a).length);
-          
-          if (candidates.length > 0) {
-            console.log(`[HTC] Found via main content strategy: ${extractText(candidates[0]).length} chars`);
-            return candidates[0];
-          }
+            .sort((a, b) => textOf(b).length - textOf(a).length);
+          return candidates[0] || null;
         }
         return null;
       },
-      
-      // Strategy 2: Look for specific job description elements
       () => {
-        const selectors = [
-          '[data-testid*="description" i]',
-          '[data-qa*="description" i]',
-          '[class*="JobDescription" i]',
-          '[class*="job-description" i]',
-          '[class*="job-details" i]',
-          '[class*="JobDetails" i]',
-          '[id*="job-description" i]'
+        const sels = [
+          '[data-testid*="description" i]','[data-qa*="description" i]','[class*="JobDescription" i]',
+          '[class*="job-description" i]','[class*="job-details" i]','[class*="JobDetails" i]','[id*="job-description" i]'
         ];
-        
-        for (const sel of selectors) {
+        for (const sel of sels) {
           try {
             const el = document.querySelector(sel);
-            if (el && extractText(el).length > 400 && !el.querySelector('.htc-badge-container')) {
-              console.log(`[HTC] Found via selector: ${sel}`);
-              return el;
-            }
-          } catch (e) {}
+            if (el && textOf(el).length > 400 && !el.querySelector('.htc-badge-container')) return el;
+          } catch {}
         }
         return null;
       },
-      
-      // Strategy 3: Find h1 and get its parent container
       () => {
         const h1 = document.querySelector('h1');
-        if (h1 && /\w{3,}/.test(h1.textContent)) {
-          let container = h1.closest('article, section, main, div[class*="content" i]');
-          if (container && extractText(container).length > 400 && !container.querySelector('.htc-badge-container')) {
-            console.log(`[HTC] Found via h1 parent container`);
-            return container;
-          }
+        if (h1 && /\w{3,}/.test(h1.textContent || "")) {
+          const container = h1.closest('article, section, main, div[class*="content" i]');
+          if (container && textOf(container).length > 400 && !container.querySelector('.htc-badge-container')) return container;
         }
         return null;
       },
-      
-      // Strategy 4: Look for the largest content block on the page
       () => {
-        const allDivs = Array.from(document.querySelectorAll('div, section, article'))
+        const all = Array.from(document.querySelectorAll('div, section, article'))
           .filter(el => {
-            const text = extractText(el);
-            const rect = el.getBoundingClientRect();
-            // Must be visible, substantial, and not a sidebar/similar jobs section
-            return text.length > 500 && 
-                   rect.width > 300 && 
+            const t = textOf(el);
+            const r = el.getBoundingClientRect?.() || { width: 0 };
+            return t.length > 500 && r.width > 300 &&
                    !el.closest('[class*="sidebar" i], [class*="similar" i], [class*="recommendation" i], aside') &&
                    !el.querySelector('.htc-badge-container');
           })
-          .sort((a, b) => extractText(b).length - extractText(a).length);
-        
-        if (allDivs.length > 0) {
-          console.log(`[HTC] Found via largest content block: ${extractText(allDivs[0]).length} chars`);
-          return allDivs[0];
-        }
-        return null;
+          .sort((a, b) => textOf(b).length - textOf(a).length);
+        return all[0] || null;
       }
     ];
-
-    // Try each strategy in order
-    for (const strategy of strategies) {
-      const result = strategy();
-      if (result) return result;
-    }
-
-    console.log("[HTC] Could not find main job content");
+    for (const s of strategies) { const res = s(); if (res) return res; }
     return null;
   }
 
-  // Scan job cards in list view
+  // ====== RENDER (idempotent) ======
+  function upsertCardBadge(card, result) {
+    // If a detailed badge exists on the page, skip simple badges (avoid two labels)
+    if (byId(DETAIL_ROOT_ID)) return;
+
+    let badge = badgeFor.get(card);
+    if (!badge || !badge.isConnected) {
+      badge = document.createElement("span");
+      badge.className = SIMPLE_CLASS;
+      badge.style.cssText = "display:inline-block;margin:.25rem 0 .25rem .5rem;padding:.2rem .5rem;border-radius:.5rem;font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff;vertical-align:middle";
+      const head = card.querySelector('h1, h2, h3, h4, [data-testid*="title" i], [data-qa*="title" i], [class*="title" i]');
+      (head || card).insertAdjacentElement("afterend", badge);
+      badgeFor.set(card, badge);
+      card.setAttribute(BADGED_ATTR, result.label);
+      card.setAttribute("data-htc-score", String(result.score));
+    }
+    badge.textContent = result.label;
+    badge.style.backgroundColor = result.color;
+  }
+
+  function upsertDetailedBadge(container, result) {
+    let root = byId(DETAIL_ROOT_ID);
+    if (!root) {
+      root = document.createElement("div");
+      root.id = DETAIL_ROOT_ID;
+      root.className = "htc-badge-container";
+      const anchor = container.querySelector('h1, h2, [data-testid*="title" i], [data-qa*="title" i]') || container;
+      anchor.insertAdjacentElement("afterend", root);
+      detailedBadgeFor.set(container, root);
+    }
+    // Update in place (no duplicates)
+    root.innerHTML = `
+      <div class="htc-badge htc-badge-detailed" style="background-color:${result.color}">
+        <span class="htc-score">${result.label}</span>
+      </div>
+      <div class="htc-details">
+        <div class="htc-details-header">Analysis:</div>
+        <ul class="htc-reasons">
+          ${result.reasons.map(r => `<li>${r}</li>`).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  // ====== SCANS ======
   function scanJobCards() {
     const cards = candidateJobCards();
-    let scannedCount = 0;
-
-    cards.forEach(card => {
-      // Skip if already has badge
-      if (badgeFor.has(card) && badgeFor.get(card).isConnected) {
-        return;
-      }
-
-      const text = extractText(card);
+    for (const card of cards) {
+      const text = textOf(card);
       if (isLikelyJobCard(card, text)) {
         const result = analyzeJob(text, false);
-        markCard(card, result);
-        scannedCount++;
+        upsertCardBadge(card, result);
       }
-    });
-
-    if (scannedCount > 0) {
-      console.log(`[HTC] Scanned ${scannedCount} job cards`);
     }
   }
 
-  // Scan detailed job posting view
   function scanDetailedJobPosting() {
-    const container = findMainJobContent();
-    
-    if (!container) {
-      console.log("[HTC] No main job content found");
+    // Check if badge already exists
+    if (byId(DETAIL_ROOT_ID)) {
+      console.log('[HTC] Detailed badge already exists, skipping');
       return;
     }
-
-    // Skip if already has detailed badge
-    if (detailedBadgeFor.has(container) && detailedBadgeFor.get(container).isConnected) {
-      console.log("[HTC] Main content already has badge");
-      return;
-    }
-
-    const text = extractText(container);
-    console.log(`[HTC] Analyzing main job content (${text.length} characters)`);
     
-    if (text.length > 300) {
-      const result = analyzeJob(text, true);
-      markDetailedJobPosting(container, result);
+    // Try to expand first, only once per page
+    const expanded = autoExpandJobDescription();
+    
+    // If we expanded, wait for content to load, then scan
+    if (expanded) {
+      console.log('[HTC] Content expanded, waiting 1 second for full load...');
+      setTimeout(() => {
+        performDetailedScan();
+      }, 1000);
+    } else {
+      // No expansion needed, scan immediately
+      performDetailedScan();
     }
   }
 
-  // Main scan function
+  function performDetailedScan() {
+    // Don't scan if badge already exists
+    if (byId(DETAIL_ROOT_ID)) {
+      console.log('[HTC] Badge exists, skipping performDetailedScan');
+      return;
+    }
+    
+    const container = findMainJobContent();
+    if (!container) return;
+    const text = textOf(container);
+    console.log(`[HTC] Scanning ${text.length} characters of content`);
+    if (text.length < 300) return;
+    const result = analyzeJob(text, true);
+    upsertDetailedBadge(container, result);
+  }
+
   function scanAll() {
-    console.log("[HTC] Running full scan...");
+    // Detect URL changes and reset
+    if (location.href !== lastScannedUrl) resetForNewRoute();
     scanJobCards();
     scanDetailedJobPosting();
   }
 
-  // Observe page changes
-  const observer = new MutationObserver((mutations) => {
-    let shouldScan = false;
-    
-    for (const mutation of mutations) {
-      if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-        shouldScan = true;
-        break;
-      }
-    }
-
-    if (shouldScan) {
-      setTimeout(scanAll, 400);
-    }
+  // ====== OBSERVER (always schedule scans) ======
+  const debScan = debounce(scanAll, 400);
+  const observer = new MutationObserver((muts) => {
+    let added = false;
+    for (const m of muts) { if (m.addedNodes && m.addedNodes.length) { added = true; break; } }
+    if (added) debScan();
   });
+  try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch {}
 
-  observer.observe(document.documentElement, { 
-    childList: true, 
-    subtree: true 
-  });
+  // ====== SPA ROUTE HOOKS ======
+  function routeChanged() { resetForNewRoute(); debScan(); }
+  (function (history) {
+    const push = history.pushState, replace = history.replaceState;
+    history.pushState = function (...a) { const r = push.apply(history, a); routeChanged(); return r; };
+    history.replaceState = function (...a) { const r = replace.apply(history, a); routeChanged(); return r; };
+  })(window.history);
+  window.addEventListener("popstate", routeChanged);
 
-  // Listen for manual trigger from popup
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg && msg.type === "HANDSHAKE_SCAN") {
-      console.log("[HTC] Manual scan triggered");
+  // Fallback href polling (some routers don't emit above events reliably)
+  let hrefPoll = location.href;
+  setInterval(() => {
+    if (location.href !== hrefPoll) { hrefPoll = location.href; routeChanged(); }
+  }, 700);
+
+  // ====== POPUP MESSAGE: manual "Scan Page" ======
+  chrome.runtime?.onMessage?.addListener?.((msg, _sender, sendResponse) => {
+    if (msg?.type === "HANDSHAKE_SCAN") {
       scanAll();
-      sendResponse({ ok: true });
+      sendResponse?.({ ok: true });
     }
   });
 
-  // Initial scans with multiple attempts
-  setTimeout(scanAll, 1000);
-  setTimeout(scanAll, 2500);
-  setTimeout(scanAll, 4000);
+  // ====== INITIAL ======
+  lastScannedUrl = location.href;
+  setTimeout(scanAll, 800);
 
-  console.log("[HTC] Handshake Trust Checker loaded and ready");
+  console.log("[HTC] Handshake Trust Checker: auto-scan + dedupe initialized");
 })();
