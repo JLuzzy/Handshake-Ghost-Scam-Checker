@@ -6,21 +6,47 @@
 
   // ====== CONFIG / RULES ======
   const RED_FLAGS = [
+    // Financial exploitation red flags
     { pattern: /immediate\s*hire/i, name: "Immediate hire pressure", weight: 12 },
-    { pattern: /no\s*experience\s*(required|needed)/i, name: "No experience required", weight: 8 },
-    { pattern: /work from home and earn thousands/i, name: "Unrealistic earnings claim", weight: 15 },
-    { pattern: /send\s*payment/i, name: "Payment request", weight: 20 },
-    { pattern: /training\s*fee/i, name: "Training fee required", weight: 20 },
-    { pattern: /quick\s*money|easy\s*money/i, name: "Quick money promise", weight: 15 },
-    { pattern: /wire\s*transfer/i, name: "Wire transfer mention", weight: 18 },
-    { pattern: /gift\s*cards?/i, name: "Gift card mention", weight: 18 },
-    { pattern: /telegram|whatsapp|signal/i, name: "Unofficial communication channel", weight: 10 },
-    { pattern: /crypto(?:currency)?/i, name: "Cryptocurrency mention", weight: 8 },
-    { pattern: /upfront\s*fee|application\s*fee/i, name: "Upfront fee required", weight: 20 },
-    { pattern: /apply\s+via\s+google\s+form|docs\.google\.com\/forms/i, name: "External application form", weight: 8 },
-    { pattern: /contact\s+via\s+dm|direct\s+message/i, name: "DM-only contact", weight: 6 },
-    { pattern: /\$\d{1,3},?\d{3,}\+?\s*per\s*(week|day)/i, name: "Unusually high weekly/daily pay", weight: 10 },
-    { pattern: /limited\s*spots?|only\s*\d+\s*positions?/i, name: "Artificial scarcity", weight: 5 },
+    { pattern: /send\s*payment|pay\s*us|payment\s*required/i, name: "Payment request", weight: 20 },
+    { pattern: /training\s*fee|course\s*fee|certification\s*fee/i, name: "Training fee required", weight: 20 },
+    { pattern: /upfront\s*fee|application\s*fee|processing\s*fee|registration\s*fee/i, name: "Upfront fee required", weight: 20 },
+    { pattern: /wire\s*transfer|western\s*union|moneygram/i, name: "Wire transfer mention", weight: 18 },
+    { pattern: /gift\s*cards?|prepaid\s*card|itunes|steam\s*card/i, name: "Gift card mention", weight: 18 },
+    { pattern: /deposit\s*required|security\s*deposit/i, name: "Deposit required", weight: 18 },
+    
+    // Unrealistic promises
+    { pattern: /work from home and earn thousands|make \$\d+k? from home/i, name: "Unrealistic earnings claim", weight: 15 },
+    { pattern: /quick\s*money|easy\s*money|fast\s*cash/i, name: "Quick money promise", weight: 15 },
+    { pattern: /no\s*experience\s*(required|needed)|anyone\s*can\s*do/i, name: "No experience required", weight: 8 },
+    { pattern: /guaranteed\s*income|guaranteed\s*earnings/i, name: "Guaranteed income claim", weight: 12 },
+    { pattern: /\$\d{1,3},?\d{3,}\+?\s*per\s*(week|day)|weekly\s*pay\s*\$\d{3,}/i, name: "Unusually high weekly/daily pay", weight: 10 },
+    { pattern: /unlimited\s*earning\s*potential|earn\s*as\s*much\s*as\s*you\s*want/i, name: "Unlimited earnings claim", weight: 10 },
+    
+    // Evasive communication
+    { pattern: /telegram|whatsapp|signal|wickr/i, name: "Unofficial communication channel", weight: 10 },
+    { pattern: /contact\s+via\s+dm|direct\s+message|dm\s+me|message\s+me\s+directly/i, name: "DM-only contact", weight: 8 },
+    { pattern: /apply\s+via\s+google\s+form|docs\.google\.com\/forms|bit\.ly|tinyurl/i, name: "External application form", weight: 8 },
+    { pattern: /personal\s*email|gmail|yahoo|hotmail|outlook\.com/i, name: "Personal email domain", weight: 6 },
+    { pattern: /send\s*resume\s*to|email\s*resume\s*to.*@(gmail|yahoo|hotmail)/i, name: "Non-corporate email for applications", weight: 10 },
+    
+    // Vague or suspicious content
+    { pattern: /limited\s*spots?|only\s*\d+\s*positions?|hiring\s*now|act\s*fast/i, name: "Artificial scarcity", weight: 5 },
+    { pattern: /no\s*interview\s*required|hire\s*without\s*interview/i, name: "No interview required", weight: 12 },
+    { pattern: /work\s*from\s*anywhere|location\s*independent|digital\s*nomad/i, name: "Overly flexible location", weight: 4 },
+    { pattern: /mystery\s*shopper|secret\s*shopper|product\s*tester/i, name: "Common scam job title", weight: 10 },
+    { pattern: /package\s*forwarding|reshipping|parcel\s*receiving/i, name: "Package forwarding (common scam)", weight: 15 },
+    { pattern: /data\s*entry.*work.*home|envelope\s*stuffing/i, name: "Classic scam job type", weight: 12 },
+    
+    // Crypto/MLM red flags
+    { pattern: /crypto(?:currency)?|bitcoin|blockchain\s*opportunity/i, name: "Cryptocurrency mention", weight: 8 },
+    { pattern: /multi[-\s]?level|mlm|network\s*marketing|pyramid/i, name: "MLM/pyramid scheme language", weight: 15 },
+    { pattern: /recruit.*friends|bring.*team|referral\s*bonus/i, name: "Recruitment-focused", weight: 10 },
+    { pattern: /be\s*your\s*own\s*boss|entrepreneur\s*opportunity/i, name: "Vague entrepreneurship pitch", weight: 6 },
+    
+    // Identity theft risks
+    { pattern: /social\s*security|ssn|driver'?s?\s*license.*upfront|copy\s*of\s*id\s*card/i, name: "Requesting sensitive documents upfront", weight: 15 },
+    { pattern: /credit\s*check\s*fee|background\s*check\s*fee/i, name: "Fee for background check", weight: 12 },
   ];
 
   const JOB_KEYWORDS = [
@@ -44,22 +70,20 @@
     RED_FLAGS.forEach(flag => {
       if (flag.pattern.test(text)) {
         score -= flag.weight;
-        if (includeReasons) reasons.push(flag.name);
+        if (includeReasons) reasons.push(`🚩 ${flag.name}`);
       }
     });
 
-    if (text.length < 120) { score -= 10; if (includeReasons) reasons.push("Suspiciously short description"); }
-    const capsWords = jobText.match(/[A-Z]{3,}/g) || [];
-    if (capsWords.length > 15) { score -= 4; if (includeReasons) reasons.push("Excessive use of capital letters"); }
+    if (text.length < 120) { score -= 10; if (includeReasons) reasons.push("🚩 Suspiciously short description"); }
 
     if (includeReasons) {
       const hasResponsibilities = /responsibilit|duties|what you('ll| will) do/i.test(text);
       const hasQualifications = /qualification|requirement|skills|experience/i.test(text);
       const hasCompanyInfo = /about (us|the company|our (team|company))/i.test(text);
 
-      if (!hasResponsibilities && text.length > 200) { score -= 8; reasons.push("Missing job responsibilities"); }
-      if (!hasQualifications && text.length > 200) { score -= 8; reasons.push("Missing qualifications/requirements"); }
-      if (!hasCompanyInfo && text.length > 300) { score -= 5; reasons.push("Missing company information"); }
+      if (!hasResponsibilities && text.length > 200) { score -= 8; reasons.push("🚩 Missing job responsibilities"); }
+      if (!hasQualifications && text.length > 200) { score -= 8; reasons.push("🚩 Missing qualifications/requirements"); }
+      if (!hasCompanyInfo && text.length > 300) { score -= 5; reasons.push("🚩 Missing company information"); }
 
       if (text.length > 500 && hasResponsibilities && hasQualifications) reasons.push("✓ Detailed, structured job posting");
       if (/benefits|health insurance|401k|pto|paid time off/i.test(text)) reasons.push("✓ Benefits mentioned");
