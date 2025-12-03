@@ -13,25 +13,34 @@ Suspicious Postings - Jobs with unprofessional or misleading content
 
 ## Installation:
 
-Chrome/Edge (Manual Installation)
+Works with Chrome and Edge browsers. 
 
-1.Download the Extension
+1. Download the Extension
 
-2.Click the green "Code" button on this GitHub page
+   - Click the green "Code" button on this GitHub page
 
-3.Select "Download ZIP"
+   - Select "Download ZIP"
 
-4.Extract the ZIP file to a folder on your computer
+2. Extract the ZIP file to a folder on your computer
 
-5.Open Chrome or Edge
+3. Open Chrome or Edge
 
-6.Navigate to chrome://extensions/ (or edge://extensions/), or select the extensions icon from the top right (puzzle piece)
+4. Navigate to chrome://extensions/ (or edge://extensions/), or select the extensions icon from the top right (puzzle piece) <br/>
 
-7.Enable "Developer mode" in the top-right corner
+   <img width="298" height="97" alt="image" src="https://github.com/user-attachments/assets/10020717-1bf9-4ed3-b23a-897d5bb4e0f1" />
 
 
-8.Click "Load unpacked"
-9. Select the folder where you extracted the extension files
+5. Enable "Developer mode" in the top-right corner
+
+
+6. Click "Load unpacked" <br/>
+
+   <img width="418" height="414" alt="image" src="https://github.com/user-attachments/assets/5aef1fb6-cf83-49b0-ab6d-719dca5c18ce" />
+
+7. Select the folder where you extracted the extension files <br/>
+
+   <img width="1186" height="713" alt="image" src="https://github.com/user-attachments/assets/7a3dfb48-8007-4c74-8868-d64bb09fa29a" />
+
 
 The extension should now appear in your extensions list!
 
