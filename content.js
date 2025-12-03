@@ -75,11 +75,88 @@
     });
 
     if (text.length < 120) { score -= 10; if (includeReasons) reasons.push("🚩 Suspiciously short description"); }
+    const capsWords = jobText.match(/[A-Z]{3,}/g) || [];
+    if (capsWords.length > 15) { score -= 4; if (includeReasons) reasons.push("🚩 Excessive use of capital letters"); }
 
     if (includeReasons) {
-      const hasResponsibilities = /responsibilit|duties|what you('ll| will) do/i.test(text);
-      const hasQualifications = /qualification|requirement|skills|experience/i.test(text);
-      const hasCompanyInfo = /about (us|the company|our (team|company))/i.test(text);
+      // Enhanced detection for responsibilities - including common misspellings
+      const responsibilityKeywords = [
+        /responsibilit/i,
+        /responsibiliit/i,        // Common typo: double 'i'
+        /responsiblities/i,       // Common typo: missing 'i'
+        /responsabilities/i,      // Common typo: 'a' instead of 'i'
+        /\bduties\b/i,
+        /\bduty\b/i,
+        /what you('ll| will) do/i,
+        /your role/i,
+        /day[- ]?to[- ]?day/i,
+        /daily tasks/i,
+        /key tasks/i,
+        /main tasks/i,
+        /job functions?/i,
+        /primary duties/i,
+        /core duties/i
+      ];
+      const hasResponsibilities = responsibilityKeywords.some(pattern => pattern.test(text));
+      
+      // Enhanced detection for qualifications - including common misspellings
+      const qualificationKeywords = [
+        /qualifications?/i,
+        /qualfications?/i,         // Common typo: missing 'i'
+        /quallifications?/i,       // Common typo: double 'l'
+        /requirements?/i,
+        /requirments?/i,          // Common typo: missing 'e'
+        /\bskills?\b/i,
+        /\bskils?\b/i,            // Common typo: single 'l'
+        /experience/i,
+        /experiance/i,            // Common typo: 'a' instead of 'e'
+        /must have/i,
+        /should have/i,
+        /what (we're|we are) looking for/i,
+        /ideal candidate/i,
+        /you('ll| will) need/i,
+        /what you bring/i,
+        /preferred experience/i
+      ];
+      const hasQualifications = qualificationKeywords.some(pattern => pattern.test(text));
+      
+      // Enhanced detection for company info - including common misspellings
+      const companyInfoKeywords = [
+        /about (us|the company|our (team|company|organization|mission|culture))/i,
+        /who we are/i,
+        /company (overview|description|profile)/i,
+        /our story/i
+      ];
+      const hasCompanyInfo = companyInfoKeywords.some(pattern => pattern.test(text));
+
+      // Check for excessive typos/misspellings as a red flag itself
+      const typoIndicators = [
+        /responsibiliit/i,
+        /responsiblities/i,
+        /responsabilities/i,
+        /qualfications?/i,
+        /quallifications?/i,
+        /requirments?/i,
+        /experiance/i,
+        /\bskils?\b/i,
+        /recieve/i,              // receive misspelled
+        /seperate/i,             // separate misspelled
+        /occured/i,              // occurred misspelled
+        /begining/i,             // beginning misspelled
+        /succesful/i,            // successful misspelled
+        /profesional/i,          // professional misspelled
+        /managment/i,            // management misspelled
+        /enviroment/i            // environment misspelled
+      ];
+      
+      const typoCount = typoIndicators.filter(pattern => pattern.test(text)).length;
+      if (typoCount >= 2) {
+        score -= 6;
+        reasons.push("🚩 Multiple spelling errors detected");
+      }
+
+      // Add debug logging
+      console.log('[HTC] Detection Results:', { hasResponsibilities, hasQualifications, hasCompanyInfo, typoCount, textLength: text.length });
 
       if (!hasResponsibilities && text.length > 200) { score -= 8; reasons.push("🚩 Missing job responsibilities"); }
       if (!hasQualifications && text.length > 200) { score -= 8; reasons.push("🚩 Missing qualifications/requirements"); }
@@ -101,22 +178,36 @@
   const badgeFor = new WeakMap();
   const detailedBadgeFor = new WeakMap();
   let lastScannedUrl = "";
-  let expandAttempted = false; // Track if we've tried to expand on this page
+  let expandAttempted = false;
 
   function resetForNewRoute() {
     expandAttempted = false;
     lastScannedUrl = location.href;
-    // remove old detailed badge so a fresh one can render
     const old = byId(DETAIL_ROOT_ID);
     if (old?.parentNode) old.parentNode.removeChild(old);
   }
 
+  function extractText(node) {
+    // Get all text content including from child elements
+    let text = (node.innerText || node.textContent || "").trim();
+    
+    // Also check for text in strong, b, u, em tags that might be headers
+    const headers = node.querySelectorAll('strong, b, u, em, h1, h2, h3, h4, h5, h6');
+    headers.forEach(header => {
+      const headerText = (header.innerText || header.textContent || "").trim();
+      if (headerText && !text.includes(headerText)) {
+        text += " " + headerText;
+      }
+    });
+    
+    return text;
+  }
+
   // ====== AUTO-EXPAND ======
   function autoExpandJobDescription() {
-    if (expandAttempted) return false; // Only try once per page
+    if (expandAttempted) return false;
     expandAttempted = true;
     
-    // Common patterns for "Show More", "Read More", "See Full Description" buttons
     const expandSelectors = [
       'button[aria-label*="more" i]',
       'button[aria-label*="expand" i]',
@@ -130,12 +221,10 @@
 
     let clicked = false;
     
-    // Try each selector
     for (const selector of expandSelectors) {
       try {
         const buttons = document.querySelectorAll(selector);
         buttons.forEach(btn => {
-          // Check if button text suggests it's an expand button
           const text = (btn.textContent || btn.getAttribute('aria-label') || '').toLowerCase();
           if (/more|expand|full|complete|entire/i.test(text) && btn.offsetParent !== null) {
             console.log('[HTC] Auto-clicking expand button:', text);
@@ -143,12 +232,9 @@
             clicked = true;
           }
         });
-      } catch (e) {
-        // Selector might not be valid, continue
-      }
+      } catch (e) {}
     }
 
-    // Also look for any button within the job description area
     const mainContent = document.querySelector('main, [role="main"]');
     if (mainContent) {
       const buttons = Array.from(mainContent.querySelectorAll('button, [role="button"]'));
@@ -197,13 +283,13 @@
         if (main) {
           const candidates = Array.from(main.querySelectorAll('div, section, article'))
             .filter(el => {
-              const t = textOf(el);
+              const t = extractText(el);
               return t.length > 400 &&
                      /responsibilit|qualification|requirement|description/i.test(t) &&
                      !el.closest('[class*="sidebar" i], [class*="similar" i], aside') &&
                      !el.querySelector('.htc-badge-container');
             })
-            .sort((a, b) => textOf(b).length - textOf(a).length);
+            .sort((a, b) => extractText(b).length - extractText(a).length);
           return candidates[0] || null;
         }
         return null;
@@ -216,7 +302,7 @@
         for (const sel of sels) {
           try {
             const el = document.querySelector(sel);
-            if (el && textOf(el).length > 400 && !el.querySelector('.htc-badge-container')) return el;
+            if (el && extractText(el).length > 400 && !el.querySelector('.htc-badge-container')) return el;
           } catch {}
         }
         return null;
@@ -225,20 +311,20 @@
         const h1 = document.querySelector('h1');
         if (h1 && /\w{3,}/.test(h1.textContent || "")) {
           const container = h1.closest('article, section, main, div[class*="content" i]');
-          if (container && textOf(container).length > 400 && !container.querySelector('.htc-badge-container')) return container;
+          if (container && extractText(container).length > 400 && !container.querySelector('.htc-badge-container')) return container;
         }
         return null;
       },
       () => {
         const all = Array.from(document.querySelectorAll('div, section, article'))
           .filter(el => {
-            const t = textOf(el);
+            const t = extractText(el);
             const r = el.getBoundingClientRect?.() || { width: 0 };
             return t.length > 500 && r.width > 300 &&
                    !el.closest('[class*="sidebar" i], [class*="similar" i], [class*="recommendation" i], aside') &&
                    !el.querySelector('.htc-badge-container');
           })
-          .sort((a, b) => textOf(b).length - textOf(a).length);
+          .sort((a, b) => extractText(b).length - extractText(a).length);
         return all[0] || null;
       }
     ];
@@ -248,7 +334,6 @@
 
   // ====== RENDER (idempotent) ======
   function upsertCardBadge(card, result) {
-    // If a detailed badge exists on the page, skip simple badges (avoid two labels)
     if (byId(DETAIL_ROOT_ID)) return;
 
     let badge = badgeFor.get(card);
@@ -259,11 +344,11 @@
       const head = card.querySelector('h1, h2, h3, h4, [data-testid*="title" i], [data-qa*="title" i], [class*="title" i]');
       (head || card).insertAdjacentElement("afterend", badge);
       badgeFor.set(card, badge);
-      card.setAttribute(BADGED_ATTR, result.label);
+      card.setAttribute(BADGED_ATTR, "scanned");
       card.setAttribute("data-htc-score", String(result.score));
     }
-    badge.textContent = result.label;
-    badge.style.backgroundColor = result.color;
+    badge.textContent = "Scanned ✓";
+    badge.style.backgroundColor = "#64748b";
   }
 
   function upsertDetailedBadge(container, result) {
@@ -276,16 +361,16 @@
       anchor.insertAdjacentElement("afterend", root);
       detailedBadgeFor.set(container, root);
     }
-    // Update in place (no duplicates)
     root.innerHTML = `
-      <div class="htc-badge htc-badge-detailed" style="background-color:${result.color}">
-        <span class="htc-score">${result.label}</span>
-      </div>
       <div class="htc-details">
-        <div class="htc-details-header">Analysis:</div>
+        <div class="htc-details-header">Here's what we found on this job posting:</div>
         <ul class="htc-reasons">
           ${result.reasons.map(r => `<li>${r}</li>`).join("")}
         </ul>
+        <div class="htc-disclaimer">
+          <span class="htc-disclaimer-icon">⚠️</span>
+          <span class="htc-disclaimer-text">This tool provides guidance only. We are not responsible for your decisions when applying to jobs. Our results may be invalid. Always conduct your own research.</span>
+        </div>
       </div>
     `;
   }
@@ -294,7 +379,7 @@
   function scanJobCards() {
     const cards = candidateJobCards();
     for (const card of cards) {
-      const text = textOf(card);
+      const text = extractText(card);
       if (isLikelyJobCard(card, text)) {
         const result = analyzeJob(text, false);
         upsertCardBadge(card, result);
@@ -303,29 +388,23 @@
   }
 
   function scanDetailedJobPosting() {
-    // Check if badge already exists
     if (byId(DETAIL_ROOT_ID)) {
       console.log('[HTC] Detailed badge already exists, skipping');
       return;
     }
     
-    // Try to expand first, only once per page
     const expanded = autoExpandJobDescription();
-    
-    // If we expanded, wait for content to load, then scan
     if (expanded) {
       console.log('[HTC] Content expanded, waiting 1 second for full load...');
       setTimeout(() => {
         performDetailedScan();
       }, 1000);
     } else {
-      // No expansion needed, scan immediately
       performDetailedScan();
     }
   }
 
   function performDetailedScan() {
-    // Don't scan if badge already exists
     if (byId(DETAIL_ROOT_ID)) {
       console.log('[HTC] Badge exists, skipping performDetailedScan');
       return;
@@ -333,7 +412,7 @@
     
     const container = findMainJobContent();
     if (!container) return;
-    const text = textOf(container);
+    const text = extractText(container);
     console.log(`[HTC] Scanning ${text.length} characters of content`);
     if (text.length < 300) return;
     const result = analyzeJob(text, true);
@@ -341,13 +420,12 @@
   }
 
   function scanAll() {
-    // Detect URL changes and reset
     if (location.href !== lastScannedUrl) resetForNewRoute();
     scanJobCards();
     scanDetailedJobPosting();
   }
 
-  // ====== OBSERVER (always schedule scans) ======
+  // ====== OBSERVER ======
   const debScan = debounce(scanAll, 400);
   const observer = new MutationObserver((muts) => {
     let added = false;
@@ -365,13 +443,12 @@
   })(window.history);
   window.addEventListener("popstate", routeChanged);
 
-  // Fallback href polling (some routers don't emit above events reliably)
   let hrefPoll = location.href;
   setInterval(() => {
     if (location.href !== hrefPoll) { hrefPoll = location.href; routeChanged(); }
   }, 700);
 
-  // ====== POPUP MESSAGE: manual "Scan Page" ======
+  // ====== POPUP MESSAGE ======
   chrome.runtime?.onMessage?.addListener?.((msg, _sender, sendResponse) => {
     if (msg?.type === "HANDSHAKE_SCAN") {
       scanAll();

@@ -36,12 +36,6 @@
   font-weight: 600;
 }
 
-.htc-info-icon {
-  font-size: 14px;
-  opacity: 0.9;
-  font-weight: normal;
-}
-
 /* Expandable details section - always visible */
 .htc-details {
   margin-top: 8px;
@@ -82,4 +76,29 @@
 
 .htc-reasons li:first-child {
   margin-top: 0;
+}
+
+/* Disclaimer at bottom of analysis */
+.htc-disclaimer {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #78350f;
+}
+
+.htc-disclaimer-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.htc-disclaimer-text {
+  flex: 1;
 }
