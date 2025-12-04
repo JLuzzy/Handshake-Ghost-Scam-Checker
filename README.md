@@ -44,6 +44,8 @@ Works with Chrome and Edge browsers.
 
 The extension should now appear in your extensions list!
 
+(To remove the extension, select the remove option from your browsers extension list)
+
   <br/>
   
 ## How to Use:
