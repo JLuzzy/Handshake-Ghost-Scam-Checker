@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Handshake Trust Checker",
-  "version": "1.0.1",
-  "description": "Detect and highlight potential scam or ghost job listings on Handshake.",
+  "version": "1.1.0",
+  "description": "Protect students by detecting potential scam or ghost job listings on Handshake.",
   "permissions": [
     "activeTab",
     "scripting"
