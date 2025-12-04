@@ -158,40 +158,526 @@
     }
 
     if (includeReasons) {
-      // Detect job responsibilities
+      // Detect job responsibilities - COMPREHENSIVE list to avoid false positives
       const responsibilityKeywords = [
-        /responsibilit/i, /\bduties\b/i, /\bduty\b/i,
-        /what you('ll| will) do/i, /what you('ll| will) be doing/i,
-        /your role/i, /the role/i, /this role/i,
-        /you will/i, /you('ll| will) be/i,
-        /day[- ]?to[- ]?day/i, /tasks include/i,
-        /job functions?/i, /essential functions/i,
-        /responsible for/i, /responsibilities include/i,
-        /job description/i, /position description/i,
-        /work with/i, /collaborate with/i,
-        /\b(manage|develop|create|lead|coordinate|assist|support|maintain|implement|execute|perform|conduct|analyze|prepare|review|ensure|provide|deliver|handle|process)\b/i
+        // Standard headers and terms
+        /responsibilit/i,
+        /\bduties\b/i,
+        /\bduty\b/i,
+        /\btasks?\b/i,
+        /\bscope\b/i,
+        
+        // "What you'll do" variations
+        /what you('ll| will) do/i,
+        /what you('ll| will) be doing/i,
+        /what you('d| would) do/i,
+        /what to expect/i,
+        /a day in the life/i,
+        /in this role/i,
+        /as a\b.*\byou will/i,
+        /as an?\b.*\byou('ll| will)/i,
+        
+        // Role descriptions
+        /your role/i,
+        /the role/i,
+        /this role/i,
+        /this position/i,
+        /the position/i,
+        /position will/i,
+        /role will/i,
+        /role involves/i,
+        /job involves/i,
+        /position involves/i,
+        /you will/i,
+        /you('ll| will) be/i,
+        /you would/i,
+        /you('d| would) be/i,
+        /candidate will/i,
+        
+        // Task-related
+        /day[- ]?to[- ]?day/i,
+        /daily tasks/i,
+        /daily activities/i,
+        /daily work/i,
+        /key tasks/i,
+        /main tasks/i,
+        /primary tasks/i,
+        /core tasks/i,
+        /tasks include/i,
+        /tasks involve/i,
+        /activities include/i,
+        
+        // Function-related
+        /job functions?/i,
+        /primary duties/i,
+        /core duties/i,
+        /main duties/i,
+        /key duties/i,
+        /essential duties/i,
+        /essential functions/i,
+        /key functions/i,
+        /core functions/i,
+        /primary functions/i,
+        /main functions/i,
+        
+        // Responsibility phrases
+        /you will be responsible/i,
+        /responsible for/i,
+        /responsibilities include/i,
+        /duties include/i,
+        /this includes/i,
+        /accountable for/i,
+        /charged with/i,
+        /tasked with/i,
+        /expected to/i,
+        /required to/i,
+        
+        // Action-oriented
+        /you will be expected to/i,
+        /expected to perform/i,
+        /will be required to/i,
+        /will involve/i,
+        /will include/i,
+        /includes but not limited to/i,
+        /including but not limited to/i,
+        /such as/i,
+        
+        // Job description headers
+        /job description/i,
+        /position description/i,
+        /role description/i,
+        /job summary/i,
+        /position summary/i,
+        /role summary/i,
+        /job overview/i,
+        /position overview/i,
+        /role overview/i,
+        /about the position/i,
+        /about this role/i,
+        /about the role/i,
+        /about this position/i,
+        /about the job/i,
+        /about this job/i,
+        /the opportunity/i,
+        /this opportunity/i,
+        /your opportunity/i,
+        
+        // Work-related verbs and phrases
+        /work with/i,
+        /work on/i,
+        /work closely/i,
+        /working with/i,
+        /working on/i,
+        /collaborate with/i,
+        /collaborating with/i,
+        /partner with/i,
+        /partnering with/i,
+        /support.*team/i,
+        /assist.*team/i,
+        /help.*team/i,
+        /join.*team/i,
+        /part of.*team/i,
+        /member of.*team/i,
+        
+        // Common responsibility action verbs (present tense)
+        /\b(manages?|develops?|creates?|leads?|coordinates?|assists?|supports?|maintains?|implements?|executes?|performs?|conducts?|analyzes?|analyses?|prepares?|reviews?|ensures?|provides?|delivers?|handles?|processes?|designs?|builds?|writes?|researches?|evaluates?|monitors?|tracks?|reports?|documents?|trains?|mentors?|coaches?|facilitates?|organizes?|plans?|schedules?|administers?|operates?|troubleshoots?|resolves?|investigates?|identifies?|recommends?|advises?|consults?|communicates?|presents?|negotiates?|collaborates?|contributes?|participates?|engages?)\b/i,
+        
+        // "Looking for someone to" patterns
+        /looking for.*to\b/i,
+        /seeking.*to\b/i,
+        /need.*to\b/i,
+        /hiring.*to\b/i,
+        
+        // Internship/entry-level specific
+        /learning opportunity/i,
+        /learn about/i,
+        /gain experience/i,
+        /hands[- ]?on/i,
+        /exposure to/i,
+        /shadow/i,
+        /rotate through/i,
+        /rotation/i
       ];
       const hasResponsibilities = responsibilityKeywords.some(pattern => pattern.test(text));
 
-      // Detect qualifications
+      // Detect qualifications/experience - COMPREHENSIVE list to avoid false positives
       const qualificationKeywords = [
-        /qualifications?/i, /requirements?/i,
-        /\bskills?\b/i, /experience/i,
-        /must have/i, /should have/i,
+        // Standard headers
+        /qualifications?/i,
+        /requirements?/i,
+        /requisites?/i,
+        /prerequisites?/i,
+        /credentials?/i,
+        /competenc/i,
+        
+        // Skills
+        /\bskills?\b/i,
+        /\babilities?\b/i,
+        /\bcapabilities?\b/i,
+        /proficien/i,
+        /expertise/i,
+        /knowledge of/i,
+        /knowledge in/i,
+        /familiarity with/i,
+        /familiar with/i,
+        /understanding of/i,
+        /background in/i,
+        /background with/i,
+        
+        // Experience variations
+        /experience/i,
+        /experienc/i,
+        /\bexper\b/i,
+        /years? of/i,
+        /\d+\+?\s*years?/i,
+        /entry[- ]?level/i,
+        /junior/i,
+        /senior/i,
+        /mid[- ]?level/i,
+        /experienced/i,
+        /seasoned/i,
+        
+        // "Must have" variations
+        /must have/i,
+        /must be/i,
+        /must possess/i,
+        /should have/i,
+        /should be/i,
+        /should possess/i,
+        /need to have/i,
+        /needs to have/i,
+        /required to have/i,
+        /expected to have/i,
+        
+        // "Looking for" variations
         /what (we're|we are) looking for/i,
-        /ideal candidate/i, /you('ll| will) need/i,
-        /what you bring/i, /preferred experience/i,
-        /minimum requirements/i, /required skills/i
+        /who (we're|we are) looking for/i,
+        /we're looking for/i,
+        /we are looking for/i,
+        /we're seeking/i,
+        /we are seeking/i,
+        /we seek/i,
+        /seeking candidates?/i,
+        /looking for candidates?/i,
+        /looking for someone/i,
+        /seeking someone/i,
+        /seeking individuals?/i,
+        /looking for individuals?/i,
+        
+        // Candidate descriptions
+        /ideal candidate/i,
+        /successful candidate/i,
+        /qualified candidate/i,
+        /strong candidate/i,
+        /right candidate/i,
+        /perfect candidate/i,
+        /ideal applicant/i,
+        /successful applicant/i,
+        /you are/i,
+        /you're/i,
+        /you have/i,
+        /you've/i,
+        /you bring/i,
+        /you possess/i,
+        /you demonstrate/i,
+        /you can/i,
+        /you should/i,
+        
+        // "What you need/bring" variations
+        /you('ll| will) need/i,
+        /you('ll| will) bring/i,
+        /what you need/i,
+        /what you bring/i,
+        /what you'll need/i,
+        /what you'll bring/i,
+        /what we need/i,
+        /what we require/i,
+        /what's required/i,
+        /what is required/i,
+        
+        // Requirements/preferences
+        /preferred experience/i,
+        /preferred qualifications?/i,
+        /preferred skills?/i,
+        /preferred background/i,
+        /desired experience/i,
+        /desired qualifications?/i,
+        /desired skills?/i,
+        /minimum requirements?/i,
+        /minimum qualifications?/i,
+        /basic requirements?/i,
+        /basic qualifications?/i,
+        /required skills?/i,
+        /required qualifications?/i,
+        /required experience/i,
+        /nice to have/i,
+        /plus\b/i,
+        /bonus\b/i,
+        /advantageous/i,
+        /a plus/i,
+        
+        // Education
+        /education/i,
+        /degree/i,
+        /bachelor/i,
+        /master/i,
+        /mba/i,
+        /phd/i,
+        /diploma/i,
+        /certificate/i,
+        /certification/i,
+        /certified/i,
+        /licens/i,
+        /accredit/i,
+        /graduate/i,
+        /undergraduate/i,
+        /college/i,
+        /university/i,
+        /school/i,
+        /major/i,
+        /minor/i,
+        /gpa/i,
+        /coursework/i,
+        /studies/i,
+        /studying/i,
+        /enrolled/i,
+        /pursuing/i,
+        /current student/i,
+        /rising senior/i,
+        /rising junior/i,
+        
+        // Technical skills
+        /technical skills?/i,
+        /soft skills?/i,
+        /hard skills?/i,
+        /programming/i,
+        /coding/i,
+        /software/i,
+        /tools?/i,
+        /technologies?/i,
+        /platforms?/i,
+        /systems?/i,
+        /languages?/i,
+        /frameworks?/i,
+        
+        // Traits and attributes
+        /attention to detail/i,
+        /detail[- ]?oriented/i,
+        /self[- ]?starter/i,
+        /self[- ]?motivated/i,
+        /team[- ]?player/i,
+        /team[- ]?oriented/i,
+        /strong communication/i,
+        /excellent communication/i,
+        /communication skills/i,
+        /interpersonal/i,
+        /leadership/i,
+        /problem[- ]?solv/i,
+        /analytical/i,
+        /critical thinking/i,
+        /creative/i,
+        /organized/i,
+        /organizational/i,
+        /time management/i,
+        /multitask/i,
+        /multi[- ]?task/i,
+        /flexible/i,
+        /adaptable/i,
+        /proactive/i,
+        /reliable/i,
+        /dependable/i,
+        /punctual/i,
+        /passionate/i,
+        /enthusiastic/i,
+        /motivated/i,
+        /driven/i,
+        /curious/i,
+        /eager/i,
+        /willing to learn/i,
+        /quick learner/i,
+        /fast learner/i
       ];
       const hasQualifications = qualificationKeywords.some(pattern => pattern.test(text));
 
-      // Detect company information
+      // Detect company information - COMPREHENSIVE list to avoid false positives
       const companyInfoKeywords = [
-        /about (us|the company|our (team|company|organization|mission|culture))/i,
-        /who we are/i, /company (overview|description|profile)/i,
-        /our story/i, /founded in/i, /we are a/i,
-        /our mission/i, /we specialize/i, /we provide/i,
-        /leading provider/i
+        // "About" variations
+        /about us/i,
+        /about the company/i,
+        /about our/i,
+        /about \w+/i,  // About [Company Name]
+        /who we are/i,
+        /who is \w+/i,  // Who is [Company Name]
+        /what we do/i,
+        /what is \w+/i,  // What is [Company Name]
+        
+        // Company descriptions
+        /company (overview|description|profile|background|history|info|information)/i,
+        /corporate (overview|profile|background)/i,
+        /organization (overview|profile|background)/i,
+        /firm (overview|profile|background)/i,
+        /business (overview|profile|background)/i,
+        
+        // "Our" variations
+        /our story/i,
+        /our history/i,
+        /our mission/i,
+        /our vision/i,
+        /our values/i,
+        /our culture/i,
+        /our team/i,
+        /our company/i,
+        /our organization/i,
+        /our firm/i,
+        /our business/i,
+        /our clients?/i,
+        /our customers?/i,
+        /our partners?/i,
+        /our products?/i,
+        /our services?/i,
+        /our solutions?/i,
+        /our approach/i,
+        /our focus/i,
+        /our goal/i,
+        /our purpose/i,
+        /our commitment/i,
+        
+        // Founding/establishment
+        /founded in/i,
+        /founded by/i,
+        /established in/i,
+        /established by/i,
+        /since \d{4}/i,
+        /started in/i,
+        /began in/i,
+        /launched in/i,
+        /created in/i,
+        /\bfounded\b/i,
+        /\bestablished\b/i,
+        /year(s)? (old|of experience|in business)/i,
+        /decades? of/i,
+        
+        // "We are/We're" patterns
+        /we are a/i,
+        /we're a/i,
+        /we are an/i,
+        /we're an/i,
+        /we are the/i,
+        /we're the/i,
+        /we have been/i,
+        /we've been/i,
+        /we believe/i,
+        /we strive/i,
+        /we aim/i,
+        /we work/i,
+        /we pride/i,
+        /we value/i,
+        /we offer/i,
+        /we provide/i,
+        /we deliver/i,
+        /we serve/i,
+        /we help/i,
+        /we create/i,
+        /we build/i,
+        /we design/i,
+        /we develop/i,
+        /we specialize/i,
+        /we focus/i,
+        /we're committed/i,
+        /we are committed/i,
+        /we're dedicated/i,
+        /we are dedicated/i,
+        /we're passionate/i,
+        /we are passionate/i,
+        
+        // Industry/sector descriptors
+        /leading (provider|company|firm|organization|innovator|developer|manufacturer)/i,
+        /top (provider|company|firm|organization)/i,
+        /premier (provider|company|firm|organization)/i,
+        /global (leader|company|firm|organization|provider)/i,
+        /industry leader/i,
+        /market leader/i,
+        /innovative (company|firm|organization|team)/i,
+        /fast[- ]?growing/i,
+        /rapidly growing/i,
+        /growing (company|firm|organization|team|startup)/i,
+        /startup/i,
+        /start[- ]?up/i,
+        /fortune \d+/i,
+        /inc\.? \d+/i,
+        /publicly traded/i,
+        /privately held/i,
+        /family[- ]?owned/i,
+        /employee[- ]?owned/i,
+        /non[- ]?profit/i,
+        /nonprofit/i,
+        /not[- ]?for[- ]?profit/i,
+        
+        // Size/scale
+        /\d+[,+]?\s*(employees?|team members?|people|staff)/i,
+        /small (company|business|firm|team)/i,
+        /medium[- ]?sized/i,
+        /large (company|corporation|enterprise)/i,
+        /enterprise/i,
+        /multinational/i,
+        /international/i,
+        /nationwide/i,
+        /nationwide/i,
+        /global presence/i,
+        /worldwide/i,
+        /across (the globe|the world|countries|states)/i,
+        /offices? (in|across|around)/i,
+        /locations? (in|across|around)/i,
+        /headquartered/i,
+        /based in/i,
+        /located in/i,
+        
+        // Industry mentions
+        /industry/i,
+        /sector/i,
+        /field/i,
+        /space/i,
+        /market/i,
+        /vertical/i,
+        
+        // Client/customer mentions
+        /serving (clients?|customers?)/i,
+        /work with (clients?|customers?|companies|organizations)/i,
+        /partner with/i,
+        /trusted by/i,
+        /chosen by/i,
+        
+        // Awards/recognition
+        /award[- ]?winning/i,
+        /recognized/i,
+        /acclaimed/i,
+        /rated/i,
+        /ranked/i,
+        /certified/i,
+        /accredited/i,
+        
+        // Company names often followed by "is" or descriptors
+        /\b(inc|llc|ltd|corp|corporation|company|co|group|holdings|partners|consulting|solutions|services|technologies|tech|labs|studio|studios|agency|associates|enterprises|ventures|capital)\b/i,
+        
+        // Join us / team culture
+        /join (us|our team|the team)/i,
+        /part of (our|the) team/i,
+        /become part of/i,
+        /you'll join/i,
+        /you will join/i,
+        /team environment/i,
+        /work environment/i,
+        /workplace/i,
+        /office culture/i,
+        /company culture/i,
+        /team culture/i,
+        
+        // Why work here
+        /why (work|join)/i,
+        /why us/i,
+        /what we offer/i,
+        /perks/i,
+        /benefits include/i
       ];
       const hasCompanyInfo = companyInfoKeywords.some(pattern => pattern.test(text));
 
@@ -209,14 +695,15 @@
         reasons.push("🚩 Multiple spelling errors detected");
       }
 
-      // Flag missing essential sections (only for substantial postings)
-      if (!hasResponsibilities && text.length > 400) {
+      // Flag missing essential sections (only for substantial postings with high thresholds)
+      // These thresholds are intentionally high to minimize false positives
+      if (!hasResponsibilities && text.length > 800) {
         reasons.push("🚩 Missing job responsibilities");
       }
-      if (!hasQualifications && text.length > 400) {
+      if (!hasQualifications && text.length > 800) {
         reasons.push("🚩 Missing qualifications/requirements");
       }
-      if (!hasCompanyInfo && text.length > 600) {
+      if (!hasCompanyInfo && text.length > 1000) {
         reasons.push("🚩 Missing company information");
       }
 
